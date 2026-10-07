@@ -511,6 +511,76 @@ main { display: block; }
   .hero { align-items: end; padding-top: 44vh; padding-top: 44svh; }
 }
 
+/* ==========================================================================
+   Home: cinematic red-moon hero (always dark, in both themes)
+   ========================================================================== */
+.page-home .hero {
+  margin-top: -4.5rem;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding-top: 7.5rem;
+  color: #f6eee9;
+  background:
+    radial-gradient(ellipse 50% 60% at 74% 38%, rgba(170, 16, 28, 0.45), transparent 70%),
+    radial-gradient(ellipse 80% 70% at 15% 0%, rgba(120, 10, 18, 0.65), transparent 70%),
+    linear-gradient(180deg, #140205 0%, #220408 45%, #0a0103 100%);
+}
+@media (max-width: 860px) {
+  .page-home .hero { padding-top: calc(44vh + 4.5rem); padding-top: calc(44svh + 4.5rem); }
+}
+/* Fade the scene into the page below */
+.page-home .hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 90px;
+  background: linear-gradient(transparent, var(--bg));
+  pointer-events: none;
+}
+.page-home .hero h1 { color: #fff; }
+.page-home .hero .gradient-text {
+  background: linear-gradient(120deg, #ff4d5a, #ffb37a);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.page-home .hero .typed::after { background: #ff7a45; }
+.page-home .hero .lede { color: rgba(246, 238, 233, 0.78); }
+.page-home .hero .badge {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(246, 238, 233, 0.85);
+}
+.page-home .hero .btn-primary {
+  background: linear-gradient(120deg, #d7263d, #ff7a45);
+  box-shadow: 0 10px 30px -10px #d7263d;
+}
+.page-home .hero .btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.page-home .hero .btn-ghost:hover { border-color: #ff7a45; }
+.page-home .hero .scroll-cue { border-color: rgba(255, 255, 255, 0.3); }
+.page-home .hero .scroll-cue::after { background: rgba(255, 255, 255, 0.6); }
+/* Fallback when WebGL is unavailable: a pale moon */
+.page-home .scene-hero::before {
+  background: #f3eee6;
+  box-shadow: 0 0 120px 30px rgba(255, 70, 70, 0.35);
+}
+
+/* Header sits over the dark hero until the page scrolls */
+.page-home:not(.nav-open) .site-header:not(.scrolled) .logo { color: #f6eee9; }
+.page-home:not(.nav-open) .site-header:not(.scrolled) .icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #f6eee9;
+}
+@media (min-width: 761px) {
+  .page-home .site-header:not(.scrolled) .site-nav ul a { color: rgba(246, 238, 233, 0.75); }
+  .page-home .site-header:not(.scrolled) .site-nav ul a:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
