@@ -487,7 +487,7 @@ main { display: block; }
 
 @media (max-width: 860px) {
   .scene-hero::before { right: 50%; top: 6%; transform: translateX(50%); animation: none; }
-  .scene-hero.ready canvas { opacity: 0.55; }
+  .scene-hero.ready canvas { opacity: 1; }
 }
 @media (max-width: 760px) {
   .scene-mini { width: 12rem; right: -1.5rem; top: 0.5rem; opacity: 0.55; }
@@ -508,7 +508,7 @@ main { display: block; }
 .hero h1 { font-size: clamp(2.4rem, 5.2vw, 4.4rem); max-width: 16ch; }
 .hero .stagger > * { max-width: 40rem; }
 @media (max-width: 860px) {
-  .hero { align-items: end; padding-top: 38vh; padding-top: 38svh; }
+  .hero { align-items: end; padding-top: 44vh; padding-top: 44svh; }
 }
 
 .badge {
