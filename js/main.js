@@ -213,6 +213,76 @@
     });
   }
 
+  /* ---------- New Year: fireworks + confetti behind the page ---------- */
+  const now = new Date();
+  const newYear = now.getFullYear() + (now.getMonth() >= 9 ? 1 : 0); // From October, greet the coming year
+  document.querySelectorAll("[data-year]").forEach((el) => { el.dataset.year = newYear; });
+
+  const sky = document.createElement("canvas");
+  sky.className = "celebrate";
+  sky.setAttribute("aria-hidden", "true");
+  document.body.prepend(sky);
+  const sg = sky.getContext("2d");
+  const colors = ["#ffc94a", "#ff4f9a", "#4fd2ff", "#9b6bff", "#5cff9d", "#ff7a3d"];
+  const pick = () => colors[(Math.random() * colors.length) | 0];
+  let confetti = [], sparks = [];
+  const newPiece = (top) => ({
+    x: Math.random() * innerWidth, y: top ? -20 : Math.random() * innerHeight,
+    w: 5 + Math.random() * 5, h: 8 + Math.random() * 6, color: pick(),
+    vy: 0.6 + Math.random() * 1.2, sway: Math.random() * 6, spin: Math.random() * 6, vs: 0.02 + Math.random() * 0.05,
+  });
+  const sizeSky = () => {
+    sky.width = innerWidth;
+    sky.height = innerHeight;
+    confetti = Array.from({ length: Math.round(Math.min(70, innerWidth / 18)) }, () => newPiece(false));
+  };
+  const firework = () => {
+    const x = innerWidth * (0.1 + Math.random() * 0.8), y = innerHeight * (0.1 + Math.random() * 0.35), color = pick();
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 3.5;
+      sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, color: Math.random() < 0.15 ? "#fff" : color });
+    }
+  };
+  const drawSky = () => {
+    sg.clearRect(0, 0, sky.width, sky.height);
+    confetti.forEach((p, i) => {
+      p.y += p.vy; p.sway += 0.03; p.spin += p.vs;
+      if (p.y > innerHeight + 20) confetti[i] = newPiece(true);
+      sg.save();
+      sg.translate(p.x + Math.sin(p.sway) * 12, p.y);
+      sg.rotate(p.spin);
+      sg.scale(1, Math.cos(p.spin * 1.7)); // flip like paper
+      sg.fillStyle = p.color;
+      sg.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      sg.restore();
+    });
+    sg.globalCompositeOperation = "lighter";
+    sparks = sparks.filter((s) => s.life > 0);
+    sparks.forEach((s) => {
+      s.x += s.vx; s.y += s.vy; s.vx *= 0.97; s.vy = s.vy * 0.97 + 0.04; s.life -= 0.015;
+      sg.globalAlpha = Math.max(s.life, 0);
+      sg.fillStyle = s.color;
+      sg.beginPath();
+      sg.arc(s.x, s.y, 1.8, 0, Math.PI * 2);
+      sg.fill();
+    });
+    sg.globalAlpha = 1;
+    sg.globalCompositeOperation = "source-over";
+  };
+  sizeSky();
+  window.addEventListener("resize", sizeSky);
+  if (reduceMotion) {
+    drawSky();
+  } else {
+    let nextBurst = 0;
+    const tickSky = (ms) => {
+      if (ms > nextBurst) { firework(); nextBurst = ms + 1400 + Math.random() * 2200; }
+      drawSky();
+      requestAnimationFrame(tickSky);
+    };
+    requestAnimationFrame(tickSky); // rAF pauses on its own while the tab is hidden
+  }
+
   /* ---------- Footer year ---------- */
   const year = document.getElementById("year");
   if (year) year.textContent = new Date().getFullYear();

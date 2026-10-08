@@ -1,21 +1,38 @@
-// 3D scenes: an animated samurai-styled character (waves, blinks, breathes, follows the cursor)
-// standing on a rock under a red moon, with drifting smoke, falling maple leaves and rising embers.
+// 3D scenes: an animated cartoon version of the person in image/personal.jpg who waves and says
+// "Welcome!" (blinks, breathes, follows the cursor) on a golden stage, celebrating the New Year with
+// fireworks, falling confetti, twinkling sparkles and a glowing year number.
 // Mount with <div class="scene" data-3d="hero|mini"></div>. Falls back to the CSS orb if WebGL is unavailable.
 import * as THREE from "three";
 
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const finePointer = matchMedia("(hover: hover) and (pointer: fine)").matches;
+const PHOTO = new URL("../image/personal.jpg", import.meta.url).href;
+const now = new Date();
+const YEAR = now.getFullYear() + (now.getMonth() >= 9 ? 1 : 0); // From October, greet the coming year
 
-const cssColor = (name) =>
-  new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888");
+const GOLD = 0xffc94a;
+const PINK = 0xff4f9a;
+const FESTIVE = [0xffc94a, 0xff4f9a, 0x4fd2ff, 0x9b6bff, 0x5cff9d, 0xff7a3d, 0xffffff];
 
-const smooth = (x) => x * x * (3 - 2 * x);
 const clamp = THREE.MathUtils.clamp;
-const lerp = THREE.MathUtils.lerp;
+
+// Additive glow that adds light without touching the canvas alpha, so it blends cleanly over the page
+const glow = (mat) => Object.assign(mat, {
+  transparent: true, depthWrite: false, toneMapped: false,
+  blending: THREE.CustomBlending,
+  blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneFactor,
+  blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+});
+
+const makeCanvas = (w, h) => {
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  return c;
+};
 
 function radialTexture(stops) {
-  const c = document.createElement("canvas");
-  c.width = c.height = 128;
+  const c = makeCanvas(128, 128);
   const g = c.getContext("2d");
   const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   stops.forEach(([at, color]) => grad.addColorStop(at, color));
@@ -24,19 +41,25 @@ function radialTexture(stops) {
   return new THREE.CanvasTexture(c);
 }
 
+const dotTexture = () => radialTexture([[0, "rgba(255,255,255,1)"], [0.3, "rgba(255,255,255,0.6)"], [1, "rgba(255,255,255,0)"]]);
+
 /* ------------------------------------------------------------------ Character */
 
+// Cartoon 3D version of the person in image/personal.jpg: brown curtain-bangs hair, royal-blue polo
+// with chest patches, red lanyard and an ID badge that shows the real photo.
 const PALETTE = {
-  skin: 0xe9b98f,
-  hair: 0x4a2a18,
-  shirt: 0x1f56e0,
+  skin: 0xeab48c,
+  hair: 0x5a2f17,
+  shirt: 0x1f4fe0,
+  shirtDark: 0x173db0,
   pants: 0x1f2433,
   shoes: 0xf4f5f8,
   dark: 0x1b1b22,
-  lip: 0x9b4a3a,
+  lip: 0xa0503f,
   red: 0xe11d2e,
   white: 0xffffff,
   blush: 0xf29a8a,
+  yellow: 0xffc22e,
 };
 
 function buildPerson() {
@@ -70,25 +93,45 @@ function buildPerson() {
   torso.position.y = 1.0;
   body.add(torso);
   add(torso, new THREE.CapsuleGeometry(0.4, 0.55, 12, 24), M.shirt, 0, 0.55, 0).scale.z = 0.75;
-  const collar = add(torso, new THREE.TorusGeometry(0.17, 0.055, 10, 28), M.shirt, 0, 1.2, 0);
-  collar.rotation.x = Math.PI / 2;
   add(torso, new THREE.CylinderGeometry(0.12, 0.13, 0.22, 20), M.skin, 0, 1.26, 0);
 
-  // Lanyard and ID badge
+  // Polo collar: two folded flaps and a button placket
+  for (const s of [-1, 1]) {
+    const flap = add(torso, new THREE.BoxGeometry(0.2, 0.05, 0.16), M.shirt, s * 0.12, 1.17, 0.14);
+    flap.rotation.set(0.5, s * -0.35, s * -0.35);
+  }
+  const back = add(torso, new THREE.TorusGeometry(0.16, 0.05, 10, 28, Math.PI), M.shirt, 0, 1.18, -0.02);
+  back.rotation.x = Math.PI / 2;
+  add(torso, new THREE.BoxGeometry(0.08, 0.26, 0.02), M.shirtDark, 0, 0.98, 0.3);
+  for (const y of [1.05, 0.95]) add(torso, new THREE.SphereGeometry(0.015, 8, 8), M.white, 0, y, 0.315);
+
+  // Chest patches: round club logo on one side, school crest on the other
+  const patch = add(torso, new THREE.CylinderGeometry(0.1, 0.1, 0.02, 28), M.red, -0.2, 0.82, 0.27);
+  patch.rotation.x = Math.PI / 2 - 0.25;
+  const ring = add(torso, new THREE.TorusGeometry(0.065, 0.016, 8, 24), M.yellow, -0.2, 0.825, 0.285);
+  ring.rotation.x = -0.25;
+  const crest = add(torso, new THREE.ConeGeometry(0.08, 0.12, 3), M.red, 0.21, 0.84, 0.28);
+  crest.rotation.set(Math.PI / 2 - 0.25, 0, Math.PI);
+  crest.scale.z = 0.15;
+
+  // Lanyard and ID badge (the badge photo is filled in once the image loads)
   const lanyard = add(torso, new THREE.TorusGeometry(0.22, 0.022, 8, 32, Math.PI), M.red, 0, 1.08, 0.27);
   lanyard.rotation.set(-0.3, 0, Math.PI);
   lanyard.scale.y = 1.6;
-  add(torso, new THREE.BoxGeometry(0.2, 0.26, 0.025), M.white, 0, 0.62, 0.31);
-  add(torso, new THREE.BoxGeometry(0.2, 0.06, 0.03), M.red, 0, 0.72, 0.315);
+  add(torso, new THREE.BoxGeometry(0.22, 0.28, 0.025), M.white, 0, 0.6, 0.31);
+  add(torso, new THREE.BoxGeometry(0.22, 0.05, 0.03), M.red, 0, 0.72, 0.315);
+  const badgePhoto = add(torso, new THREE.PlaneGeometry(0.11, 0.13), new THREE.MeshBasicMaterial({ color: 0xdfe6f2 }), -0.04, 0.58, 0.324);
+  for (const y of [0.6, 0.56]) add(torso, new THREE.BoxGeometry(0.05, 0.012, 0.005), M.dark, 0.06, y, 0.325);
 
-  // Arms: shoulder -> elbow pivots
+  // Arms: shoulder -> elbow pivots, short sleeves
   const arms = {};
   for (const [side, s] of [["left", -1], ["right", 1]]) {
     const shoulder = new THREE.Group();
     shoulder.position.set(s * 0.47, 1.0, 0);
     torso.add(shoulder);
-    add(shoulder, new THREE.SphereGeometry(0.16, 20, 16), M.shirt);
-    add(shoulder, new THREE.CapsuleGeometry(0.135, 0.3, 8, 16), M.shirt, 0, -0.22, 0);
+    add(shoulder, new THREE.SphereGeometry(0.17, 20, 16), M.shirt);
+    add(shoulder, new THREE.CapsuleGeometry(0.15, 0.22, 8, 16), M.shirt, 0, -0.18, 0);
+    add(shoulder, new THREE.CapsuleGeometry(0.11, 0.18, 8, 16), M.skin, 0, -0.34, 0);
     const elbow = new THREE.Group();
     elbow.position.y = -0.46;
     shoulder.add(elbow);
@@ -107,160 +150,200 @@ function buildPerson() {
   add(face, new THREE.SphereGeometry(0.5, 40, 32), M.skin);
   for (const s of [-1, 1]) add(face, new THREE.SphereGeometry(0.1, 16, 12), M.skin, s * 0.49, -0.02, 0);
 
-  // Hair: cap tilted back, plus a swept side fringe
-  const cap = add(face, new THREE.SphereGeometry(0.535, 40, 24, 0, Math.PI * 2, 0, Math.PI * 0.55), M.hair, 0, 0.03, -0.02);
-  cap.rotation.x = -0.35;
-  cap.scale.set(1.04, 1, 1.04);
-  // Curtain bangs parted in the middle, sweeping down to each side
+  // Hair: full cap plus long curtain bangs parted in the middle, like the photo
+  const cap = add(face, new THREE.SphereGeometry(0.545, 40, 24, 0, Math.PI * 2, 0, Math.PI * 0.58), M.hair, 0, 0.03, -0.03);
+  cap.rotation.x = -0.3;
+  cap.scale.set(1.05, 1.02, 1.05);
   for (const s of [-1, 1]) {
-    const bang = add(face, new THREE.SphereGeometry(0.26, 24, 16), M.hair, s * 0.2, 0.27, 0.33);
+    const bang = add(face, new THREE.SphereGeometry(0.28, 24, 16), M.hair, s * 0.22, 0.29, 0.31);
     bang.scale.set(1.05, 0.42, 0.55);
-    bang.rotation.z = s * -0.42;
-    const side = add(face, new THREE.SphereGeometry(0.2, 20, 14), M.hair, s * 0.43, 0.08, 0.12);
-    side.scale.set(0.45, 0.9, 0.7);
+    bang.rotation.z = s * -0.5;
+    const side = add(face, new THREE.SphereGeometry(0.22, 20, 14), M.hair, s * 0.44, 0.04, 0.1);
+    side.scale.set(0.42, 1.05, 0.75);
   }
 
-  // Face
+  // Face: eyes, brows, nose, cheeks and a smile
   const eyes = [];
   for (const s of [-1, 1]) {
-    const eye = add(face, new THREE.SphereGeometry(0.06, 16, 12), M.dark, s * 0.17, 0.0, 0.46);
-    eye.scale.set(1, 1.2, 0.6);
+    const eye = add(face, new THREE.SphereGeometry(0.065, 16, 12), M.dark, s * 0.17, 0.0, 0.465);
+    eye.scale.set(1.05, 1.25, 0.7);
     eyes.push(eye);
-    add(face, new THREE.SphereGeometry(0.018, 8, 8), M.white, s * 0.17 + 0.022, 0.03, 0.5);
-    const brow = add(face, new THREE.BoxGeometry(0.13, 0.03, 0.03), M.hair, s * 0.17, 0.13, 0.47);
-    brow.rotation.z = s * -0.12;
+    add(face, new THREE.SphereGeometry(0.02, 8, 8), M.white, s * 0.17 + 0.022, 0.035, 0.51);
+    const brow = add(face, new THREE.BoxGeometry(0.13, 0.03, 0.03), M.hair, s * 0.17, 0.15, 0.46);
+    brow.rotation.z = s * -0.08;
     add(face, new THREE.SphereGeometry(0.07, 16, 12), M.blush, s * 0.28, -0.12, 0.41).scale.set(1, 0.6, 0.4);
   }
   add(face, new THREE.SphereGeometry(0.055, 16, 12), M.skin, 0, -0.07, 0.5);
   const mouth = add(face, new THREE.TorusGeometry(0.085, 0.018, 8, 20, Math.PI), M.lip, 0, -0.17, 0.465);
   mouth.rotation.z = Math.PI;
 
-  // Samurai touches: red headband (hachimaki) with tails that blow in the wind
-  const band = add(face, new THREE.TorusGeometry(0.485, 0.045, 10, 56), M.red, 0, 0.14, -0.01);
-  band.rotation.x = Math.PI / 2 - 0.12;
-  const tails = [];
-  for (const s of [-1, 1]) {
-    const pivot = new THREE.Group();
-    pivot.position.set(s * 0.08, 0.12, -0.47);
-    face.add(pivot);
-    const tail = add(pivot, new THREE.BoxGeometry(0.08, 0.36, 0.02), M.red, 0, -0.17, 0);
-    tail.rotation.z = s * 0.25;
-    pivot.userData.side = s;
-    tails.push(pivot);
-  }
-
-  // Katana on the left hip: handle forward and up, scabbard behind
-  M.lacquer = new THREE.MeshStandardMaterial({ color: 0x111114, roughness: 0.25, metalness: 0.3 });
-  M.gold = new THREE.MeshStandardMaterial({ color: 0xc8a046, roughness: 0.3, metalness: 0.8 });
-  M.wrap = new THREE.MeshStandardMaterial({ color: 0x7a1218, roughness: 0.7 });
-  const sword = new THREE.Group();
-  sword.position.set(-0.36, 1.02, 0.05);
-  sword.rotation.set(-0.35, 0.35, 0);
-  body.add(sword);
-  const along = (geo, mat, z) => { const m = add(sword, geo, mat, 0, 0, z); m.rotation.x = Math.PI / 2; return m; };
-  along(new THREE.CylinderGeometry(0.035, 0.04, 1.0, 16), M.lacquer, -0.5);
-  along(new THREE.CylinderGeometry(0.09, 0.09, 0.025, 24), M.gold, 0.0);
-  along(new THREE.CylinderGeometry(0.036, 0.036, 0.32, 12), M.wrap, 0.17);
-  add(sword, new THREE.SphereGeometry(0.042, 12, 10), M.gold, 0, 0, 0.34);
-
-  return { person, body, torso, head, arms, eyes, tails };
+  return { person, body, torso, head, arms, eyes, mouth, badgePhoto };
 }
 
 function posePerson(P, t, s) {
-  // Breathing + gentle sway
+  // Breathing + gentle sway, a happy little bounce while waving
   const breath = Math.sin(t * 2);
-  P.body.position.y = breath * 0.015;
+  P.body.position.y = breath * 0.015 + s.wave * Math.abs(Math.sin(t * 6)) * 0.05;
   P.torso.scale.set(1 + breath * 0.008, 1 + breath * 0.012, 1);
-  P.torso.rotation.z = Math.sin(t * 0.9) * 0.02;
+  P.torso.rotation.z = Math.sin(t * 0.9) * 0.02 - s.wave * 0.05;
 
-  // Head follows the target
+  // Head follows the target and tilts in greeting
   P.head.rotation.y += (s.lookX * 0.6 - P.head.rotation.y) * 0.1;
   P.head.rotation.x += (s.lookY * 0.35 - P.head.rotation.x) * 0.1;
-  P.head.rotation.z = Math.sin(t * 1.3) * 0.03 + s.wave * 0.08;
+  P.head.rotation.z = Math.sin(t * 1.3) * 0.03 + s.wave * 0.12;
 
-  // Arms: idle swing, right arm waves
+  // Arms: idle swing, right arm waves hello
   const R = P.arms.right, L = P.arms.left;
   const swing = Math.sin(t * 1.6);
-  R.shoulder.rotation.z = lerp(0.12 + swing * 0.03, 2.75, s.wave);
-  R.shoulder.rotation.x = lerp(swing * 0.05, -0.15, s.wave);
+  R.shoulder.rotation.z = THREE.MathUtils.lerp(0.12 + swing * 0.03, 2.75, s.wave);
+  R.shoulder.rotation.x = THREE.MathUtils.lerp(swing * 0.05, -0.15, s.wave);
   R.elbow.rotation.z = s.wave * (0.35 + Math.sin(t * 11) * 0.5);
   L.shoulder.rotation.z = -0.12 - Math.sin(t * 1.6 + 1) * 0.03;
   L.shoulder.rotation.x = Math.sin(t * 1.6 + 1) * 0.05;
   L.elbow.rotation.z = -0.15;
 
-  // Blink
-  P.eyes.forEach((e) => (e.scale.y = s.blinking ? 0.12 : 1.2));
-
-  // Headband tails flutter in the wind
-  P.tails.forEach((p) => {
-    const k = p.userData.side;
-    p.rotation.x = 0.55 + Math.sin(t * 3.2 + k) * 0.25;
-    p.rotation.z = k * (0.15 + Math.sin(t * 2.4 + k * 2) * 0.12);
-  });
+  // Blink; smile gets bigger while waving
+  P.eyes.forEach((e) => (e.scale.y = s.blinking ? 0.12 : 1.25));
+  P.mouth.scale.set(1 + s.wave * 0.25, 1 + s.wave * 0.6, 1);
 }
 
-/* ------------------------------------------------------------------ Environment */
-
-// Soft cloud texture made of many faint blobs
-function smokeTexture() {
-  const c = document.createElement("canvas");
-  c.width = c.height = 256;
+// "Welcome!" speech bubble drawn on a canvas
+function welcomeBubble() {
+  const c = makeCanvas(512, 256);
   const g = c.getContext("2d");
-  for (let i = 0; i < 46; i++) {
-    const x = 40 + Math.random() * 176, y = 50 + Math.random() * 156, r = 30 + Math.random() * 70;
-    const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, "rgba(255,255,255,0.10)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 256, 256);
-  }
-  return new THREE.CanvasTexture(c);
+  const r = 60, x = 16, y = 16, w = 480, h = 170;
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.lineTo(402, y + h);
+  g.lineTo(417, 240); // tail pointing down-right toward the head
+  g.lineTo(362, y + h);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+  const grad = g.createLinearGradient(0, 0, 512, 0);
+  grad.addColorStop(0, "#ffc94a");
+  grad.addColorStop(1, "#ff4f9a");
+  g.fillStyle = "#fff";
+  g.shadowColor = "rgba(0,0,0,0.25)";
+  g.shadowBlur = 12;
+  g.fill();
+  g.shadowBlur = 0;
+  g.lineWidth = 8;
+  g.strokeStyle = grad;
+  g.stroke();
+  g.font = '700 92px "Space Grotesk", system-ui, sans-serif';
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = "#1a1030";
+  g.fillText("Welcome!", 256, 104);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  sprite.renderOrder = 20;
+  sprite.center.set(0.81, 0.05); // anchor at the tail tip
+  return sprite;
 }
 
-// Leaf: a pointed oval with a short stem
-function leafGeometry() {
-  const s = new THREE.Shape();
-  s.moveTo(0, -0.55);
-  s.lineTo(0.03, -0.4);
-  s.bezierCurveTo(0.42, -0.25, 0.38, 0.25, 0, 0.6);
-  s.bezierCurveTo(-0.38, 0.25, -0.42, -0.25, -0.03, -0.4);
-  s.lineTo(0, -0.55);
-  return new THREE.ShapeGeometry(s, 8);
-}
+/* ------------------------------------------------------------------ New Year environment */
 
-// Jagged rock: a dodecahedron with shared corners nudged randomly
-function rockGeometry() {
-  const geo = new THREE.DodecahedronGeometry(1.1, 1);
-  const pos = geo.attributes.position;
-  const offsets = new Map();
-  for (let i = 0; i < pos.count; i++) {
-    const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
-    if (!offsets.has(key)) offsets.set(key, 0.82 + Math.random() * 0.3);
-    const f = offsets.get(key);
-    pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f, pos.getZ(i) * f);
-  }
-  geo.computeVertexNormals();
-  return geo;
-}
+// Fireworks: a fixed pool of particles reused by bursts. Colour fades to black, which adds nothing.
+function fireworks(maxBursts, perBurst, area) {
+  const N = maxBursts * perBurst;
+  const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+  const vel = new Float32Array(N * 3), life = new Float32Array(N), base = new Float32Array(N * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const points = new THREE.Points(geo, glow(new THREE.PointsMaterial({ size: 0.09, map: dotTexture(), vertexColors: true })));
+  points.frustumCulled = false;
+  let slot = 0, next = 0.3;
+  const c = new THREE.Color();
 
-function toriiGate(material) {
-  const g = new THREE.Group();
-  const box = (w, h, d, x, y) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-    m.position.set(x, y, 0);
-    g.add(m);
-    return m;
+  const burst = () => {
+    c.setHex(FESTIVE[(Math.random() * FESTIVE.length) | 0]);
+    const cx = (Math.random() * 2 - 1) * area.x, cy = area.y0 + Math.random() * area.y, cz = area.z0 + Math.random() * area.z;
+    const speed = 1.4 + Math.random() * 1.2;
+    for (let k = 0; k < perBurst; k++) {
+      const i = slot * perBurst + k;
+      // Even directions on a sphere, slightly randomised
+      const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+      const v = speed * (0.85 + Math.random() * 0.3);
+      vel[i * 3] = r * Math.cos(th) * v; vel[i * 3 + 1] = u * v; vel[i * 3 + 2] = r * Math.sin(th) * v * 0.5;
+      pos[i * 3] = cx; pos[i * 3 + 1] = cy; pos[i * 3 + 2] = cz;
+      const hot = Math.random() < 0.15; // a few white-hot sparks
+      base[i * 3] = hot ? 1 : c.r; base[i * 3 + 1] = hot ? 1 : c.g; base[i * 3 + 2] = hot ? 1 : c.b;
+      life[i] = 1;
+    }
+    slot = (slot + 1) % maxBursts;
   };
-  for (const s of [-1, 1]) {
-    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 1.6, 12), material);
-    pillar.position.set(s * 0.55, 0.8, 0);
-    g.add(pillar);
+
+  const update = (t, dt) => {
+    if (t > next) { burst(); next = t + 0.5 + Math.random() * 1.1; }
+    const drag = Math.pow(0.35, dt);
+    for (let i = 0; i < N; i++) {
+      if (life[i] <= 0) { col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = 0; continue; }
+      life[i] -= dt * 0.55;
+      vel[i * 3] *= drag; vel[i * 3 + 1] = vel[i * 3 + 1] * drag - 0.9 * dt; vel[i * 3 + 2] *= drag;
+      pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+      const f = Math.max(life[i], 0) ** 1.5 * (0.75 + Math.random() * 0.25); // fade with a little crackle
+      col[i * 3] = base[i * 3] * f; col[i * 3 + 1] = base[i * 3 + 1] * f; col[i * 3 + 2] = base[i * 3 + 2] * f;
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+  };
+  return { points, update, burst };
+}
+
+function textSprite(text, color, height, font = '700 120px "Space Grotesk", system-ui, sans-serif') {
+  const g0 = makeCanvas(1, 1).getContext("2d");
+  g0.font = font;
+  const w = Math.ceil(g0.measureText(text).width) + 80;
+  const c = makeCanvas(w, 180);
+  const g = c.getContext("2d");
+  g.font = font;
+  g.textBaseline = "middle";
+  g.fillStyle = color;
+  g.shadowColor = color;
+  g.shadowBlur = 30;
+  g.fillText(text, 40, 92);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(glow(new THREE.SpriteMaterial({ map: tex })));
+  s.scale.set((w / 180) * height, height, 1);
+  return s;
+}
+
+// Golden stage: rings, a soft disc of light and a spinning ring of little stars
+function stage() {
+  const g = new THREE.Group();
+  const ring = (r, tube, color, opacity) => {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 8, 96), glow(new THREE.MeshBasicMaterial({ color, opacity })));
+    m.rotation.x = Math.PI / 2;
+    g.add(m);
+  };
+  ring(1.55, 0.025, GOLD, 0.95);
+  ring(1.3, 0.01, PINK, 0.7);
+
+  const stars = new THREE.Group();
+  const starGeo = new THREE.OctahedronGeometry(0.05, 0);
+  const starMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, toneMapped: false });
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const m = new THREE.Mesh(starGeo, starMat);
+    m.position.set(Math.cos(a) * 1.42, 0.03, Math.sin(a) * 1.42);
+    stars.add(m);
   }
-  box(1.5, 0.1, 0.12, 0, 1.62);            // kasagi (top beam)
-  box(1.2, 0.07, 0.08, 0, 1.36);           // nuki (lower beam)
-  box(0.08, 0.26, 0.06, 0, 1.49);          // centre strut
-  for (const s of [-1, 1]) box(0.22, 0.08, 0.12, s * 0.8, 1.66).rotation.z = s * 0.25; // upturned ends
-  return g;
+  g.add(stars);
+
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(1.6, 64),
+    glow(new THREE.MeshBasicMaterial({ map: radialTexture([[0, "rgba(255,201,74,0.5)"], [0.6, "rgba(255,79,154,0.12)"], [1, "rgba(0,0,0,0)"]]) }))
+  );
+  disc.rotation.x = -Math.PI / 2;
+  g.add(disc);
+  return { group: g, stars };
 }
 
 /* ------------------------------------------------------------------ Scene */
@@ -276,165 +359,109 @@ function mount(el) {
     return; // No WebGL: keep the CSS fallback orb
   }
   renderer.setPixelRatio(Math.min(devicePixelRatio, small ? 1.5 : 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
   el.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
   camera.position.z = 7;
 
-  const env = new THREE.Group();   // moon, gate: follows layout, slower scroll parallax
-  const world = new THREE.Group(); // character: layout + scroll
+  const world = new THREE.Group(); // layout + scroll
   const rig = new THREE.Group();   // turns toward the cursor
-  scene.add(env, world);
+  scene.add(world);
   world.add(rig);
 
-  // Lights: warm key from the front, strong white rim from the moon, red fill
-  const hemi = new THREE.HemisphereLight(0xfff0e8, 0x2a0a0c, 1.2);
-  const key = new THREE.DirectionalLight(0xffe7d6, 1.9);
-  key.position.set(2.5, 3, 6);
-  const rim = new THREE.DirectionalLight(0xffffff, 3.2);
-  rim.position.set(0, 2.5, -6);
-  const fill = new THREE.DirectionalLight(0xff3b3b, 0.6);
-  fill.position.set(-5, -1, 3);
-  scene.add(hemi, key, rim, fill);
+  // Lights: soft white key, warm gold rim from behind-left, pink rim from the right
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x1a1030, 1.1));
+  const key = new THREE.DirectionalLight(0xffffff, 1.4);
+  key.position.set(1.5, 2, 6);
+  const rimGold = new THREE.DirectionalLight(GOLD, 3.2);
+  rimGold.position.set(-5, 2, -3);
+  const rimPink = new THREE.DirectionalLight(PINK, 2.2);
+  rimPink.position.set(5, 1, -2);
+  scene.add(key, rimGold, rimPink);
 
-  // Character on a rock
+  // Character on a golden stage, with the real photo on the ID badge
+  const FLOOR = -1.85;
   const P = buildPerson();
-  P.person.position.y = -1.65;
+  P.person.position.y = FLOOR;
   rig.add(P.person);
+  new THREE.TextureLoader().load(PHOTO, (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    // Crop to the face/shoulders area of the portrait
+    tex.repeat.set(0.6, 0.45);
+    tex.offset.set(0.14, 0.5);
+    P.badgePhoto.material = new THREE.MeshBasicMaterial({ map: tex });
+    if (!running) render();
+  });
 
-  const rock = new THREE.Mesh(
-    rockGeometry(),
-    new THREE.MeshStandardMaterial({ color: 0x4a1418, roughness: 0.95, flatShading: true })
-  );
-  rock.scale.set(1.15, 0.5, 0.95);
-  rock.position.y = -1.65 - 0.47;
-  rig.add(rock);
-  const shadow = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.4, 1.4),
-    new THREE.MeshBasicMaterial({
-      map: radialTexture([[0, "rgba(0,0,0,0.5)"], [0.5, "rgba(0,0,0,0.15)"], [1, "rgba(0,0,0,0)"]]),
-      transparent: true,
-      depthWrite: false,
-    })
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = -1.65 + 0.02;
-  rig.add(shadow);
+  // "Welcome!" bubble that pops up beside the head when he waves
+  const bubble = welcomeBubble();
+  bubble.position.set(-0.35, FLOOR + 3.25, 0.3);
+  rig.add(bubble);
+  const BUBBLE_W = isHero ? 1.7 : 1.9;
 
-  // Moon with a red-white glow, behind the character
-  const moon = new THREE.Mesh(
-    new THREE.CircleGeometry(isHero ? 1.75 : 1.8, 96),
-    // Transparent + high renderOrder: drawn after the smoke so it stays bright, but still hidden by nearer objects
-    new THREE.MeshBasicMaterial({ color: isHero ? 0xf6f1ea : 0xf7dcd8, transparent: true, toneMapped: false })
-  );
-  moon.renderOrder = 10;
-  moon.position.set(0, 1.35, -5);
-  const glow = new THREE.Mesh(
-    new THREE.PlaneGeometry(10, 10),
-    new THREE.MeshBasicMaterial({
-      map: radialTexture([[0, "rgba(255,235,225,0.55)"], [0.22, "rgba(255,60,60,0.22)"], [0.55, "rgba(140,8,18,0.08)"], [1, "rgba(0,0,0,0)"]]),
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    })
-  );
-  glow.position.set(0, 1.35, -5.1);
-  glow.renderOrder = 9;
-  env.add(glow, moon);
+  const st = stage();
+  st.group.position.y = FLOOR;
+  rig.add(st.group);
 
-  // Distant torii gate
+  // Big glowing year behind the figure (hero only)
+  let yearSprite = null;
   if (isHero) {
-    const gate = toriiGate(new THREE.MeshStandardMaterial({ color: 0x5a0d12, roughness: 0.8 }));
-    gate.position.set(-0.9, -2.7, -3.6);
-    gate.scale.setScalar(0.8);
-    env.add(gate);
+    yearSprite = textSprite(String(YEAR), "#ffc94a", 1.8);
+    yearSprite.position.set(0.5, 1.7, -3.2);
+    rig.add(yearSprite);
   }
 
-  // Drifting smoke layers (hero only)
-  const smokes = [];
-  if (isHero) {
-    const tex = smokeTexture();
-    const layers = [
-      [0x9e0f19, 0.22, THREE.AdditiveBlending, -6, 1.8],
-      [0x000000, 0.7, THREE.NormalBlending, -4.5, -2.2],
-      [0x000000, 0.55, THREE.NormalBlending, -3.5, 3.0],
-      [0x6e0a12, 0.18, THREE.AdditiveBlending, -2.5, 0.2],
-      [0x000000, 0.6, THREE.NormalBlending, -1.5, -3.2],
-    ];
-    layers.forEach(([color, opacity, blending, z, y], i) => {
-      const m = new THREE.Mesh(
-        new THREE.PlaneGeometry(16, 9),
-        new THREE.MeshBasicMaterial({ map: tex, color, opacity, transparent: true, depthWrite: false, blending })
-      );
-      m.position.set((i % 2 ? -1 : 1) * 2, y, z);
-      m.rotation.z = Math.random() * Math.PI;
-      m.userData = { speed: 0.05 + i * 0.02, dir: i % 2 ? 1 : -1, x0: m.position.x };
-      scene.add(m);
-      smokes.push(m);
-    });
-  }
+  // Fireworks across the sky
+  const fw = isHero
+    ? fireworks(small ? 5 : 8, small ? 70 : 110, { x: 6.5, y0: 0.6, y: 2.6, z0: -5, z: 2.5 })
+    : fireworks(3, 60, { x: 1.8, y0: 0.3, y: 1.6, z0: -2, z: 1.5 });
+  scene.add(fw.points);
+  if (!reduceMotion) fw.burst();
 
-  // Falling maple leaves (instanced)
-  const LEAVES = isHero ? (small ? 60 : 130) : 22;
-  const span = isHero ? { x: 8, y: 4.5, z0: -5, z1: 3 } : { x: 3.2, y: 3.2, z0: -2, z1: 2 };
-  const leaves = new THREE.InstancedMesh(
-    leafGeometry(),
-    new THREE.MeshStandardMaterial({ roughness: 0.6, side: THREE.DoubleSide }),
-    LEAVES
+  // Falling confetti (instanced little rectangles)
+  const CONF = isHero ? (small ? 70 : 150) : 30;
+  const span = isHero ? { x: 8, y: 4.5, z0: -4, z1: 3 } : { x: 3, y: 3, z0: -2, z1: 2 };
+  const confetti = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(0.6, 1),
+    new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.3, side: THREE.DoubleSide }),
+    CONF
   );
-  const leafState = [];
-  const leafColors = [0xc1121f, 0x8d0b16, 0xe63946, 0x6a040f, 0xf25c54].map((c) => new THREE.Color(c));
-  const resetLeaf = (L, top) => {
-    L.x = (Math.random() * 2 - 1) * span.x;
-    L.y = top ? span.y + Math.random() : (Math.random() * 2 - 1) * span.y;
-    L.z = span.z0 + Math.random() * (span.z1 - span.z0);
-    L.speed = 0.35 + Math.random() * 0.45;
-    L.sway = 0.4 + Math.random() * 0.8;
-    L.phase = Math.random() * 10;
-    L.rx = Math.random() * 6; L.ry = Math.random() * 6; L.rz = Math.random() * 6;
-    L.spin = 0.6 + Math.random() * 1.6;
-    L.size = (isHero ? 0.12 : 0.09) + Math.random() * 0.1;
+  confetti.frustumCulled = false;
+  const confState = [];
+  const resetConf = (C, top) => {
+    C.x = (Math.random() * 2 - 1) * span.x;
+    C.y = top ? span.y + Math.random() : (Math.random() * 2 - 1) * span.y;
+    C.z = span.z0 + Math.random() * (span.z1 - span.z0);
+    C.speed = 0.4 + Math.random() * 0.5;
+    C.sway = 0.5 + Math.random();
+    C.phase = Math.random() * 10;
+    C.rx = Math.random() * 6; C.ry = Math.random() * 6; C.rz = Math.random() * 6;
+    C.spin = 1.5 + Math.random() * 3;
+    C.size = (isHero ? 0.09 : 0.07) + Math.random() * 0.06;
   };
-  for (let i = 0; i < LEAVES; i++) {
-    const L = {};
-    resetLeaf(L, false);
-    leafState.push(L);
-    leaves.setColorAt(i, leafColors[i % leafColors.length]);
+  const confColors = FESTIVE.map((c) => new THREE.Color(c));
+  for (let i = 0; i < CONF; i++) {
+    const C = {};
+    resetConf(C, false);
+    confState.push(C);
+    confetti.setColorAt(i, confColors[i % confColors.length]);
   }
-  leaves.frustumCulled = false;
-  scene.add(leaves);
+  scene.add(confetti);
   const dummy = new THREE.Object3D();
 
-  // Rising embers (hero only)
-  let embers = null, emberPos = null, emberVel = null;
-  if (isHero) {
-    const count = small ? 70 : 150;
-    emberPos = new Float32Array(count * 3);
-    emberVel = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      emberPos[i * 3] = (Math.random() * 2 - 1) * 8;
-      emberPos[i * 3 + 1] = (Math.random() * 2 - 1) * 4.5;
-      emberPos[i * 3 + 2] = -5 + Math.random() * 7;
-      emberVel[i] = 0.15 + Math.random() * 0.4;
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(emberPos, 3));
-    embers = new THREE.Points(
-      geo,
-      new THREE.PointsMaterial({
-        size: 0.07,
-        color: 0xff7a45,
-        map: radialTexture([[0, "rgba(255,255,255,1)"], [0.35, "rgba(255,255,255,0.5)"], [1, "rgba(255,255,255,0)"]]),
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      })
-    );
-    scene.add(embers);
+  // Twinkling gold sparkles
+  const SPARK = isHero ? (small ? 60 : 140) : 30;
+  const sparkPos = new Float32Array(SPARK * 3);
+  for (let i = 0; i < SPARK; i++) {
+    sparkPos[i * 3] = (Math.random() * 2 - 1) * (isHero ? 8 : 3);
+    sparkPos[i * 3 + 1] = (Math.random() * 2 - 1) * 4.5;
+    sparkPos[i * 3 + 2] = -5 + Math.random() * 6;
   }
+  const sparkGeo = new THREE.BufferGeometry();
+  sparkGeo.setAttribute("position", new THREE.BufferAttribute(sparkPos, 3));
+  const sparkles = new THREE.Points(sparkGeo, glow(new THREE.PointsMaterial({ size: 0.08, color: 0xffe08a, map: dotTexture() })));
+  scene.add(sparkles);
 
   // Layout
   const base = { x: 0, y: 0, s: 1, turn: 0 };
@@ -446,21 +473,16 @@ function mount(el) {
     camera.updateProjectionMatrix();
     if (isHero) {
       const wide = w > 860;
-      base.x = wide ? 2.7 : 0;
-      base.y = wide ? -0.1 : 1.05;
-      base.s = wide ? 0.95 : Math.min(0.55, (w / h) * 1.0);
-      base.turn = wide ? -0.35 : 0; // face toward the headline on wide screens
+      base.x = wide ? 2.6 : 0;
+      base.y = wide ? -0.1 : 1.1;
+      base.s = wide ? 0.98 : Math.min(0.55, (w / h) * 1.0);
+      base.turn = wide ? -0.25 : 0; // face toward the headline on wide screens
     } else {
-      base.y = -0.15;
-      base.s = 0.8;
-      base.turn = -0.3;
+      base.y = 0.05;
+      base.s = 0.85;
+      base.turn = -0.25;
     }
     world.scale.setScalar(base.s);
-    env.scale.setScalar(base.s);
-    // Objects at z=-5 sit further away, so shift them out to stay behind the character
-    const k = 5 / 7 / base.s;
-    moon.position.x = glow.position.x = base.x * k;
-    moon.position.y = glow.position.y = 1.15 + base.y * k;
   };
   new ResizeObserver(() => { resize(); if (!running) render(); }).observe(el);
   resize();
@@ -475,10 +497,10 @@ function mount(el) {
     }, { passive: true });
   }
 
-  // Character state
+  // Character state: waves "Welcome!" on load, every few seconds, and when the cursor comes near
   const state = { lookX: 0, lookY: 0, wave: 0, blinking: false };
-  let waveStart = 0.8, lastWave = 0.8, nextBlink = 2, blinkUntil = 0;
-  const WAVE_LEN = 2.6;
+  let waveStart = 0.6, lastWave = 0.6, nextBlink = 2, blinkUntil = 0;
+  const WAVE_LEN = 2.6, BUBBLE_LEN = WAVE_LEN + 1.6;
   const headPos = new THREE.Vector3();
 
   const clock = new THREE.Clock();
@@ -496,70 +518,63 @@ function mount(el) {
     if (mouse.active) {
       state.lookX = clamp((mouse.x - hx) * 0.9, -1, 1);
       state.lookY = clamp((mouse.y - hy) * 0.9, -0.8, 0.8);
-      if (Math.hypot(mouse.x - hx, mouse.y - hy) < 0.3 && t - lastWave > 4) { waveStart = lastWave = t; }
+      if (Math.hypot(mouse.x - hx, mouse.y - hy) < 0.3 && t - lastWave > 4) waveStart = lastWave = t;
     } else {
       state.lookX = Math.sin(t * 0.5) * 0.35;
       state.lookY = Math.sin(t * 0.37) * 0.1;
     }
-
-    // Wave on load and every ~10 seconds
-    if (t - lastWave > 10) waveStart = lastWave = t;
+    if (t - lastWave > 7) waveStart = lastWave = t;
     const d = t - waveStart;
-    state.wave = reduceMotion ? 0 : d >= 0 && d < WAVE_LEN ? smooth(Math.min(d / 0.35, 1) * Math.min((WAVE_LEN - d) / 0.35, 1)) : 0;
-
-    // Blink every few seconds
+    const ease = (x) => x * x * (3 - 2 * x);
+    state.wave = reduceMotion ? 0 : d >= 0 && d < WAVE_LEN ? ease(Math.min(d / 0.35, 1) * Math.min((WAVE_LEN - d) / 0.35, 1)) : 0;
     if (t > nextBlink) { blinkUntil = t + 0.12; nextBlink = t + 2.5 + Math.random() * 3; }
     state.blinking = t < blinkUntil;
-
     posePerson(P, t, state);
 
-    // Scroll: character turns and drifts away; background follows more slowly
-    const rect = el.getBoundingClientRect();
-    const progress = clamp(-rect.top / Math.max(rect.height, 1), 0, 1);
-    const bob = Math.sin(t * 0.8) * 0.06;
-    world.position.set(base.x, base.y + progress * 1.8 + bob, 0);
-    world.rotation.set(progress * 0.3, progress * 1.6, 0);
-    env.position.set(base.x, base.y + progress * 0.9, 0);
+    // Bubble pops in with a little overshoot, then shrinks away
+    let pop = 1;
+    if (!reduceMotion) {
+      const inP = clamp(d / 0.4, 0, 1), outP = clamp((BUBBLE_LEN - d) / 0.3, 0, 1);
+      pop = d < 0 || d > BUBBLE_LEN ? 0 : (1 + Math.sin(inP * Math.PI) * 0.15) * ease(inP) * ease(outP);
+    }
+    bubble.visible = pop > 0.01;
+    bubble.scale.set(BUBBLE_W * pop, BUBBLE_W * 0.5 * pop, 1);
+    bubble.position.y = FLOOR + 3.25 + Math.sin(t * 2) * 0.03;
+
     rig.rotation.y += (base.turn + state.lookX * 0.25 - rig.rotation.y) * 0.06;
 
-    // Moon glow breathes; camera drifts slightly with the cursor for parallax
-    glow.scale.setScalar(1 + Math.sin(t * 0.7) * 0.04);
+    // Scroll: figure turns and drifts away
+    const rect = el.getBoundingClientRect();
+    const progress = clamp(-rect.top / Math.max(rect.height, 1), 0, 1);
+    world.position.set(base.x, base.y + progress * 1.8 + Math.sin(t * 0.8) * 0.05, 0);
+    world.rotation.set(progress * 0.3, progress * 1.4, 0);
+
+    st.stars.rotation.y = t * 0.4;
+    if (yearSprite) yearSprite.material.opacity = 0.5 + Math.sin(t * 1.5) * 0.12;
+    sparkles.material.opacity = 0.6 + Math.sin(t * 4) * 0.35;
+
     camera.position.x += ((mouse.active ? mouse.x * 0.35 : 0) - camera.position.x) * 0.04;
     camera.position.y += ((mouse.active ? -mouse.y * 0.2 : 0) - camera.position.y) * 0.04;
     camera.lookAt(0, 0, 0);
 
-    smokes.forEach((m) => {
-      const u = m.userData;
-      m.position.x = u.x0 + Math.sin(t * u.speed) * 1.5 * u.dir;
-      m.rotation.z += dt * 0.01 * u.dir;
-    });
+    if (!reduceMotion) fw.update(t, dt);
 
-    // Leaves: fall, sway in the wind and tumble
-    for (let i = 0; i < LEAVES; i++) {
-      const L = leafState[i];
+    // Confetti: fall, flutter and tumble
+    for (let i = 0; i < CONF; i++) {
+      const C = confState[i];
       if (!reduceMotion) {
-        L.y -= L.speed * dt;
-        L.x += (Math.sin(t * L.sway + L.phase) * 0.6 + 0.25) * dt;
-        L.rx += L.spin * dt; L.ry += L.spin * 0.7 * dt; L.rz += L.spin * 0.4 * dt;
-        if (L.y < -span.y - 0.5 || L.x > span.x + 0.5) resetLeaf(L, true);
+        C.y -= C.speed * dt;
+        C.x += Math.sin(t * C.sway + C.phase) * 0.4 * dt;
+        C.rx += C.spin * dt; C.ry += C.spin * 0.6 * dt; C.rz += C.spin * 0.3 * dt;
+        if (C.y < -span.y - 0.5) resetConf(C, true);
       }
-      dummy.position.set(L.x, L.y, L.z);
-      dummy.rotation.set(L.rx, L.ry, L.rz);
-      dummy.scale.setScalar(L.size);
+      dummy.position.set(C.x, C.y, C.z);
+      dummy.rotation.set(C.rx, C.ry, C.rz);
+      dummy.scale.setScalar(C.size);
       dummy.updateMatrix();
-      leaves.setMatrixAt(i, dummy.matrix);
+      confetti.setMatrixAt(i, dummy.matrix);
     }
-    leaves.instanceMatrix.needsUpdate = true;
-
-    if (embers) {
-      for (let i = 0; i < emberVel.length; i++) {
-        emberPos[i * 3 + 1] += emberVel[i] * dt;
-        emberPos[i * 3] += Math.sin(t + i) * 0.1 * dt;
-        if (emberPos[i * 3 + 1] > 4.5) emberPos[i * 3 + 1] = -4.5;
-      }
-      embers.geometry.attributes.position.needsUpdate = true;
-      embers.material.opacity = 0.65 + Math.sin(t * 3) * 0.2;
-    }
+    confetti.instanceMatrix.needsUpdate = true;
 
     renderer.render(scene, camera);
   }

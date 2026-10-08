@@ -1,20 +1,24 @@
 /* ==========================================================================
    Design tokens
    ========================================================================== */
+/* Happy New Year theme: midnight sky, gold and festive pink */
 :root {
-  --bg: #f7f7fb;
+  --bg: #fbf7ee;
   --bg-elev: #ffffff;
-  --surface: rgba(255, 255, 255, 0.72);
-  --text: #12121a;
-  --muted: #5d5d70;
-  --border: rgba(18, 18, 26, 0.09);
-  --accent-1: #6d5dfc;
-  --accent-2: #12b5cb;
-  --accent-3: #f2709c;
+  --surface: rgba(255, 255, 255, 0.8);
+  --text: #1a1430;
+  --muted: #625a78;
+  --border: rgba(120, 90, 20, 0.14);
+  --accent-1: #c98a00;
+  --accent-2: #e0337a;
+  --accent-3: #6d4dff;
   --accent: var(--accent-1);
   --gradient: linear-gradient(120deg, var(--accent-1), var(--accent-2));
-  --shadow-sm: 0 1px 2px rgba(18, 18, 40, 0.06);
-  --shadow-lg: 0 24px 48px -16px rgba(40, 30, 120, 0.22);
+  --on-accent: #ffffff;
+  --sky-opacity: 0.55;
+  --star: rgba(201, 138, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(40, 20, 0, 0.08);
+  --shadow-lg: 0 24px 48px -16px rgba(120, 70, 0, 0.25);
   --radius: 18px;
   --max: 72rem;
   --narrow: 44rem;
@@ -26,28 +30,34 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b0b12;
-    --bg-elev: #14141f;
-    --surface: rgba(24, 24, 36, 0.6);
-    --text: #ededf5;
-    --muted: #9b9bb2;
-    --border: rgba(255, 255, 255, 0.08);
-    --accent-1: #8b7dff;
-    --accent-2: #3dd6e8;
-    --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+    --bg: #070a1f;
+    --bg-elev: #10142e;
+    --surface: rgba(18, 22, 52, 0.7);
+    --text: #f6f1ff;
+    --muted: #a7a3c4;
+    --border: rgba(255, 201, 74, 0.14);
+    --accent-1: #ffc94a;
+    --accent-2: #ff4f9a;
+    --on-accent: #1a1030;
+    --sky-opacity: 0.9;
+    --star: rgba(255, 255, 255, 0.55);
+    --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0b0b12;
-  --bg-elev: #14141f;
-  --surface: rgba(24, 24, 36, 0.6);
-  --text: #ededf5;
-  --muted: #9b9bb2;
-  --border: rgba(255, 255, 255, 0.08);
-  --accent-1: #8b7dff;
-  --accent-2: #3dd6e8;
-  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  --bg: #070a1f;
+  --bg-elev: #10142e;
+  --surface: rgba(18, 22, 52, 0.7);
+  --text: #f6f1ff;
+  --muted: #a7a3c4;
+  --border: rgba(255, 201, 74, 0.14);
+  --accent-1: #ffc94a;
+  --accent-2: #ff4f9a;
+  --on-accent: #1a1030;
+  --sky-opacity: 0.9;
+  --star: rgba(255, 255, 255, 0.55);
+  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
   color-scheme: dark;
 }
 
@@ -70,28 +80,43 @@ body {
   transition: background-color 0.4s var(--ease), color 0.4s var(--ease);
 }
 
-/* Soft ambient blobs behind every page */
-body::before,
-body::after {
+/* Starry sky behind every page */
+body {
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, var(--star), transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 12%, var(--star), transparent 60%),
+    radial-gradient(1px 1px at 38% 62%, var(--star), transparent 60%),
+    radial-gradient(1.5px 1.5px at 88% 48%, var(--star), transparent 60%),
+    radial-gradient(1px 1px at 55% 88%, var(--star), transparent 60%),
+    radial-gradient(1px 1px at 22% 82%, var(--star), transparent 60%);
+  background-size: 420px 420px;
+  background-attachment: fixed;
+}
+
+/* Fireworks + confetti behind every page (canvas drawn by main.js) */
+.celebrate {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  opacity: var(--sky-opacity);
+  pointer-events: none;
+}
+
+/* Warm glow in the corners */
+body::before {
   content: "";
   position: fixed;
+  inset: 0;
   z-index: -1;
-  width: 42rem;
-  height: 42rem;
-  border-radius: 50%;
-  filter: blur(110px);
-  opacity: 0.22;
   pointer-events: none;
-  animation: drift 22s ease-in-out infinite alternate;
-}
-body::before { background: var(--accent-1); top: -18rem; left: -14rem; }
-body::after  { background: var(--accent-2); bottom: -20rem; right: -16rem; animation-delay: -11s; }
-
-@keyframes drift {
-  to { transform: translate(6rem, 4rem) scale(1.15); }
+  background:
+    radial-gradient(ellipse 50% 40% at 0% 0%, rgba(255, 201, 74, 0.12), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(255, 79, 154, 0.1), transparent 70%);
 }
 
-::selection { background: var(--accent-1); color: #fff; }
+::selection { background: var(--accent-1); color: var(--on-accent); }
 
 a { color: var(--accent); text-underline-offset: 3px; }
 
@@ -203,7 +228,7 @@ h3 { font-size: 1.2rem; margin: 0 0 0.4rem; }
   height: 2.1rem;
   border-radius: 10px;
   background: var(--gradient);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 0.95rem;
   transition: transform 0.5s var(--ease);
 }
@@ -388,7 +413,7 @@ h3 { font-size: 1.2rem; margin: 0 0 0.4rem; }
 }
 .btn-primary {
   background: var(--gradient);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 0 10px 30px -10px var(--accent-1);
 }
 .btn-primary::before {
@@ -465,6 +490,9 @@ main { display: block; }
   transition: opacity 0.8s;
 }
 .scene.ready::before { opacity: 0; }
+@keyframes drift {
+  to { transform: translate(6rem, 4rem) scale(1.15); }
+}
 @keyframes float {
   50% { transform: translateY(-14px) rotate(6deg); }
 }
@@ -505,25 +533,28 @@ main { display: block; }
   align-items: center;
   padding: 3rem 0 5rem;
 }
-.hero h1 { font-size: clamp(2.4rem, 5.2vw, 4.4rem); max-width: 16ch; }
+.hero h1 { font-size: clamp(2.2rem, 4.6vw, 4rem); max-width: 16ch; }
 .hero .stagger > * { max-width: 40rem; }
+/* The hero is a grid: make its container span the full width so content lines up with the rest of the page */
+.hero > .wrap { width: 100%; }
 @media (max-width: 860px) {
   .hero { align-items: end; padding-top: 44vh; padding-top: 44svh; }
 }
 
 /* ==========================================================================
-   Home: cinematic red-moon hero (always dark, in both themes)
+   Home: New Year night-sky hero (always dark, in both themes)
    ========================================================================== */
 .page-home .hero {
   margin-top: -4.5rem;
   min-height: 100vh;
   min-height: 100svh;
   padding-top: 7.5rem;
-  color: #f6eee9;
+  color: #f6f1ff;
   background:
-    radial-gradient(ellipse 50% 60% at 74% 38%, rgba(170, 16, 28, 0.45), transparent 70%),
-    radial-gradient(ellipse 80% 70% at 15% 0%, rgba(120, 10, 18, 0.65), transparent 70%),
-    linear-gradient(180deg, #140205 0%, #220408 45%, #0a0103 100%);
+    radial-gradient(ellipse 45% 55% at 74% 45%, rgba(255, 201, 74, 0.18), transparent 70%),
+    radial-gradient(ellipse 70% 60% at 10% 0%, rgba(155, 107, 255, 0.28), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(255, 79, 154, 0.18), transparent 70%),
+    linear-gradient(180deg, #05061a 0%, #0d0f33 55%, #060719 100%);
 }
 @media (max-width: 860px) {
   .page-home .hero { padding-top: calc(44vh + 4.5rem); padding-top: calc(44svh + 4.5rem); }
@@ -538,81 +569,60 @@ main { display: block; }
   background: linear-gradient(transparent, var(--bg));
   pointer-events: none;
 }
-.page-home .hero h1 { color: #fff; }
+.page-home .hero h1 { color: #fff; text-shadow: 0 0 30px rgba(255, 201, 74, 0.25); }
+.page-home .hero h1::before {
+  content: "\2728  Happy New Year " attr(data-year) " \1F389";
+  display: block;
+  width: fit-content;
+  margin-bottom: 1rem;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid rgba(255, 201, 74, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 201, 74, 0.1);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #ffd977;
+  text-shadow: none;
+}
 .page-home .hero .gradient-text {
-  background: linear-gradient(120deg, #ff4d5a, #ffb37a);
+  background: linear-gradient(120deg, #ffc94a, #ff4f9a);
   -webkit-background-clip: text;
   background-clip: text;
 }
-.page-home .hero .typed::after { background: #ff7a45; }
-.page-home .hero .lede { color: rgba(246, 238, 233, 0.78); }
-.page-home .hero .badge {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: rgba(246, 238, 233, 0.85);
-}
+.page-home .hero .typed::after { background: #ffc94a; }
+.page-home .hero .lede { color: rgba(246, 241, 255, 0.78); }
 .page-home .hero .btn-primary {
-  background: linear-gradient(120deg, #d7263d, #ff7a45);
-  box-shadow: 0 10px 30px -10px #d7263d;
+  background: linear-gradient(120deg, #ffc94a, #ff4f9a);
+  color: #1a1030;
+  box-shadow: 0 10px 30px -10px #ff4f9a;
 }
 .page-home .hero .btn-ghost {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 201, 74, 0.4);
   color: #fff;
 }
-.page-home .hero .btn-ghost:hover { border-color: #ff7a45; }
-.page-home .hero .scroll-cue { border-color: rgba(255, 255, 255, 0.3); }
-.page-home .hero .scroll-cue::after { background: rgba(255, 255, 255, 0.6); }
-/* Fallback when WebGL is unavailable: a pale moon */
+.page-home .hero .btn-ghost:hover { border-color: #ffc94a; }
+.page-home .hero .scroll-cue { border-color: rgba(255, 255, 255, 0.35); }
+.page-home .hero .scroll-cue::after { background: #ffc94a; }
+/* Fallback when WebGL is unavailable: a golden glow */
 .page-home .scene-hero::before {
-  background: #f3eee6;
-  box-shadow: 0 0 120px 30px rgba(255, 70, 70, 0.35);
+  background: radial-gradient(circle, rgba(255, 201, 74, 0.55), rgba(255, 79, 154, 0.18) 60%, transparent 70%);
+  box-shadow: none;
 }
 
 /* Header sits over the dark hero until the page scrolls */
-.page-home:not(.nav-open) .site-header:not(.scrolled) .logo { color: #f6eee9; }
+.page-home:not(.nav-open) .site-header:not(.scrolled) .logo { color: #f6f1ff; }
 .page-home:not(.nav-open) .site-header:not(.scrolled) .icon-btn {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
-  color: #f6eee9;
+  color: #f6f1ff;
 }
 @media (min-width: 761px) {
-  .page-home .site-header:not(.scrolled) .site-nav ul a { color: rgba(246, 238, 233, 0.75); }
+  .page-home .site-header:not(.scrolled) .site-nav ul a { color: rgba(246, 241, 255, 0.75); }
   .page-home .site-header:not(.scrolled) .site-nav ul a:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
 }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.4rem 0.9rem 0.4rem 0.7rem;
-  margin-bottom: 1.75rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  backdrop-filter: blur(8px);
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--muted);
-}
-.pulse {
-  position: relative;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: #22c55e;
-}
-.pulse::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: #22c55e;
-  animation: ping 1.8s var(--ease) infinite;
-}
-@keyframes ping {
-  to { transform: scale(2.8); opacity: 0; }
-}
 
 .typed {
   display: block;
@@ -1191,7 +1201,7 @@ form { display: grid; gap: 1.1rem; position: relative; z-index: 3; }
   padding: clamp(2.5rem, 6vw, 4.5rem);
   border-radius: calc(var(--radius) + 10px);
   background: var(--gradient);
-  color: #fff;
+  color: var(--on-accent);
   overflow: hidden;
   text-align: center;
 }
@@ -1205,7 +1215,7 @@ form { display: grid; gap: 1.1rem; position: relative; z-index: 3; }
 .cta > * { position: relative; }
 .cta h2 { font-size: clamp(2rem, 5vw, 3.2rem); }
 .cta p { opacity: 0.9; max-width: 32rem; margin: 0 auto 2rem; }
-.cta .btn { background: #fff; color: #1d1a4d; }
+.cta .btn { background: #fff; color: #1a1030; }
 
 .site-footer {
   margin-top: 5rem;
